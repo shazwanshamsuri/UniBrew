@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "458028496804",
+    "project_id": "unibrew-117a5",
+    "storage_bucket": "unibrew-117a5.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:458028496804:android:f58c88727f80e59f453331",
+        "android_client_info": {
+          "package_name": "com.example.unibrew"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBGdlzbvf1aMUWm2TUbR1FU3BhiEsX6QUw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
