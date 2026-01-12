@@ -3,7 +3,6 @@ package com.example.unibrew;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
-import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageView;
@@ -16,8 +15,12 @@ import com.bumptech.glide.Glide;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.auth.UserProfileChangeRequest;
+import com.google.firebase.firestore.FirebaseFirestore; // UPDATED: Using Firestore
 import com.google.firebase.storage.FirebaseStorage;
 import com.google.firebase.storage.StorageReference;
+
+import java.util.HashMap;
+import java.util.Map;
 
 public class EditProfileActivity extends AppCompatActivity {
 
@@ -27,6 +30,7 @@ public class EditProfileActivity extends AppCompatActivity {
     private Uri imageUri;
     private FirebaseAuth mAuth;
     private FirebaseUser user;
+    private FirebaseFirestore db; // UPDATED: Firestore Instance
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -35,6 +39,7 @@ public class EditProfileActivity extends AppCompatActivity {
 
         mAuth = FirebaseAuth.getInstance();
         user = mAuth.getCurrentUser();
+        db = FirebaseFirestore.getInstance(); // UPDATED: Initialize Firestore
 
         ivProfile = findViewById(R.id.ivEditProfile);
         etUsername = findViewById(R.id.etEditUsername);
@@ -64,7 +69,7 @@ public class EditProfileActivity extends AppCompatActivity {
         btnLogout.setOnClickListener(v -> {
             mAuth.signOut();
             startActivity(new Intent(EditProfileActivity.this, LoginActivity.class));
-            finishAffinity(); // Close all screens
+            finishAffinity();
         });
     }
 
@@ -109,6 +114,7 @@ public class EditProfileActivity extends AppCompatActivity {
     }
 
     private void updateFirebaseProfile(String name, Uri photoUri) {
+        // 1. Update Authentication (Login) Profile
         UserProfileChangeRequest.Builder request = new UserProfileChangeRequest.Builder()
                 .setDisplayName(name);
 
@@ -118,8 +124,29 @@ public class EditProfileActivity extends AppCompatActivity {
 
         user.updateProfile(request.build()).addOnCompleteListener(task -> {
             if (task.isSuccessful()) {
-                Toast.makeText(EditProfileActivity.this, "Profile Updated!", Toast.LENGTH_SHORT).show();
-                finish(); // Go back to Map
+
+                // 2. SYNC WITH FIRESTORE
+                Map<String, Object> updates = new HashMap<>();
+
+                // IMPORTANT: We use "name" here because that is what we used in RegisterActivity
+                updates.put("name", name);
+
+                if (photoUri != null) {
+                    updates.put("imageURL", photoUri.toString());
+                }
+
+                // Update the document in "users" collection with the current UID
+                db.collection("users").document(user.getUid())
+                        .update(updates)
+                        .addOnSuccessListener(aVoid -> {
+                            Toast.makeText(EditProfileActivity.this, "Profile Updated & Synced!", Toast.LENGTH_SHORT).show();
+                            finish();
+                        })
+                        .addOnFailureListener(e -> {
+                            // If user document doesn't exist for some reason, create it
+                            db.collection("users").document(user.getUid()).set(updates);
+                            finish();
+                        });
             }
         });
     }

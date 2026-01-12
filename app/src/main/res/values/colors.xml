@@ -7,4 +7,6 @@
     <color name="latte_accent">#D7CCC8</color>
     <color name="orange_pop">#FFAB91</color>
     <color name="status_bar">#6D4C41</color>
+    <color name="latte_light">#D7CCC8</color>
+    <color name="soft_terracotta">#A1887F</color>
 </resources>

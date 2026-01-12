@@ -49,7 +49,7 @@ public class CafeAdapter extends RecyclerView.Adapter<CafeAdapter.ViewHolder> {
         // 3. Click Listener
         holder.itemView.setOnClickListener(v -> {
             Intent intent = new Intent(context, CafeDetailActivity.class);
-            intent.putExtra("cafeId", cafe.getCafeId());
+            intent.putExtra("cafeId", cafe.getId());
             intent.putExtra("cafeName", cafe.getName());
             intent.putExtra("cafeDesc", cafe.getDescription());
             intent.putExtra("cafeImageUrl", cafe.getImageUrl());

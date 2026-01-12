@@ -4,7 +4,7 @@ import android.Manifest;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.location.Location;
-import android.media.MediaPlayer; // Added for audio
+import android.media.MediaPlayer;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -35,7 +35,7 @@ public class HomeFragment extends Fragment {
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_home, container, false);
 
-        // This now sets the channel to IMPORTANCE_LOW to remove the "noise"
+        // This sets the channel to IMPORTANCE_LOW to remove the "noise"
         NotificationHelper.createNotificationChannel(requireContext());
 
         db = FirebaseFirestore.getInstance();
@@ -60,26 +60,34 @@ public class HomeFragment extends Fragment {
         db.collection("cafes").get().addOnSuccessListener(queryDocumentSnapshots -> {
             list.clear();
             for (QueryDocumentSnapshot doc : queryDocumentSnapshots) {
-                list.add(doc.toObject(Cafe.class));
+                // 1. Convert Firestore data to Cafe object
+                Cafe cafe = doc.toObject(Cafe.class);
+
+                // --- FIX STARTS HERE ---
+                // 2. Manually grab the Document ID and save it into the object
+                // This ensures "cafeId" is not null when you click the item!
+                cafe.setId(doc.getId());
+                // --- FIX ENDS HERE ---
+
+                list.add(cafe);
             }
             adapter.notifyDataSetChanged();
 
-            // --- 1. PLAY YOUR CUSTOM ENTRANCE SOUND ---
+            // 1. PLAY YOUR CUSTOM ENTRANCE SOUND
             playWelcomeSound();
 
-            // --- 2. CHECK FOR NEARBY CAFES (Now Silent) ---
+            // 2. CHECK FOR NEARBY CAFES
             checkNearbyCafes();
         });
     }
 
     private void playWelcomeSound() {
         try {
-            // This plays the file you put in res/raw/welcome_sound.mp3
             MediaPlayer mediaPlayer = MediaPlayer.create(getContext(), R.raw.welcome);
             if (mediaPlayer != null) {
                 mediaPlayer.setOnCompletionListener(mp -> {
                     mp.reset();
-                    mp.release(); // Clean up memory after 1 second
+                    mp.release();
                 });
                 mediaPlayer.start();
             }
@@ -106,7 +114,6 @@ public class HomeFragment extends Fragment {
                     float distanceInMeters = results[0];
 
                     if (distanceInMeters < 1000) {
-                        // The system sound is now silenced via the Notification Channel
                         NotificationHelper.sendProximityNotification(requireContext(), cafe);
                         break;
                     }

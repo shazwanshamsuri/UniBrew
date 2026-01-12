@@ -89,7 +89,7 @@ public class MapActivity extends AppCompatActivity implements OnMapReadyCallback
             if (cafe != null) {
                 Intent intent = new Intent(MapActivity.this, CafeDetailActivity.class);
                 // Pass all the data your Detail Page needs
-                intent.putExtra("cafeId", cafe.getCafeId());
+                intent.putExtra("cafeId", cafe.getId());
                 intent.putExtra("cafeName", cafe.getName());
                 intent.putExtra("cafeDesc", cafe.getDescription());
                 intent.putExtra("cafeImageUrl", cafe.getImageUrl());

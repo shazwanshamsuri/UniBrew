@@ -1,10 +1,10 @@
 package com.example.unibrew;
 
-import android.content.Intent; // Needed for starting new activities
-import android.net.Uri;       // Needed for Google Maps URL
+import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
 import android.view.View;
-import android.widget.Button;   // <--- THIS WAS MISSING!
+import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -18,6 +18,8 @@ import com.bumptech.glide.Glide;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.Query;
+import com.google.firebase.firestore.QueryDocumentSnapshot;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -31,8 +33,7 @@ public class CafeDetailActivity extends AppCompatActivity {
     private RatingBar rbRating;
     private EditText etComment;
     private View btnSubmitReview;
-    private String cafeName;
-    private String cafeId;
+    private String cafeName, cafeId;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -49,8 +50,6 @@ public class CafeDetailActivity extends AppCompatActivity {
         rbRating = findViewById(R.id.rbCafeRating);
         etComment = findViewById(R.id.etReviewComment);
         btnSubmitReview = findViewById(R.id.btnSubmitReview);
-
-        // --- Initialize Navigation Button ---
         Button btnNavigate = findViewById(R.id.btnNavigate);
 
         // 2. Get Data from Intent
@@ -58,25 +57,20 @@ public class CafeDetailActivity extends AppCompatActivity {
         cafeName = getIntent().getStringExtra("cafeName");
         String cafeDesc = getIntent().getStringExtra("cafeDesc");
         String cafeImageUrl = getIntent().getStringExtra("cafeImageUrl");
-
-        // Get Coordinates
         double lat = getIntent().getDoubleExtra("cafeLat", 0.0);
         double lng = getIntent().getDoubleExtra("cafeLng", 0.0);
 
-        // 3. Set the Text
+        // 3. Set Text & Image
         if (cafeName != null) tvName.setText(cafeName);
         if (cafeDesc != null) tvDesc.setText(cafeDesc);
 
-        // 4. Load the Image
         if (cafeImageUrl != null && !cafeImageUrl.isEmpty()) {
-            Glide.with(this)
-                    .load(cafeImageUrl)
+            Glide.with(this).load(cafeImageUrl)
                     .placeholder(android.R.drawable.ic_menu_gallery)
-                    .centerCrop()
-                    .into(ivCafeImage);
+                    .centerCrop().into(ivCafeImage);
         }
 
-        // 5. Load Reviews
+        // 4. Load Reviews (Using the new "Flattened" Query)
         if (cafeId != null) {
             loadReviews(cafeId);
         } else {
@@ -84,24 +78,20 @@ public class CafeDetailActivity extends AppCompatActivity {
             finish();
         }
 
-        // 6. Submit Review Logic
+        // 5. Submit Logic
         btnSubmitReview.setOnClickListener(v -> submitReview());
 
-        // 7. Navigation Logic
+        // 6. Navigation Logic
         if (btnNavigate != null) {
             btnNavigate.setOnClickListener(v -> {
                 if (lat != 0.0 && lng != 0.0) {
                     Uri gmmIntentUri = Uri.parse("google.navigation:q=" + lat + "," + lng);
                     Intent mapIntent = new Intent(Intent.ACTION_VIEW, gmmIntentUri);
                     mapIntent.setPackage("com.google.android.apps.maps");
-
                     if (mapIntent.resolveActivity(getPackageManager()) != null) {
                         startActivity(mapIntent);
                     } else {
-                        // Fallback to browser
-                        Uri browserUri = Uri.parse("https://www.google.com/maps/dir/?api=1&destination=" + lat + "," + lng);
-                        Intent browserIntent = new Intent(Intent.ACTION_VIEW, browserUri);
-                        startActivity(browserIntent);
+                        startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("http://maps.google.com/maps?daddr=" + lat + "," + lng)));
                     }
                 } else {
                     Toast.makeText(this, "Location not available", Toast.LENGTH_SHORT).show();
@@ -119,37 +109,46 @@ public class CafeDetailActivity extends AppCompatActivity {
             return;
         }
 
+        // --- PREPARE DATA ---
         Map<String, Object> review = new HashMap<>();
+
+        // CRITICAL: We save the Cafe ID so we can find this review later!
+        review.put("cafeId", cafeId);
         review.put("cafeName", cafeName);
         review.put("comment", comment);
         review.put("rating", rating);
 
         FirebaseUser currentUser = FirebaseAuth.getInstance().getCurrentUser();
-        String name = (currentUser != null && currentUser.getDisplayName() != null) ? currentUser.getDisplayName() : "Anonymous Student";
+        String name = (currentUser != null && currentUser.getDisplayName() != null) ? currentUser.getDisplayName() : "Anonymous";
         String photo = (currentUser != null && currentUser.getPhotoUrl() != null) ? currentUser.getPhotoUrl().toString() : "";
 
-        review.put("user", name);
+        // Standardized Keys (Matching your Admin Adapter)
+        review.put("userName", name);
         review.put("photoUrl", photo);
 
-        db.collection("reviews").document(cafeId).collection("reviews")
+        // --- SAVE TO "reviews" COLLECTION (FLAT STRUCTURE) ---
+        db.collection("reviews")
                 .add(review)
                 .addOnSuccessListener(doc -> {
                     Toast.makeText(this, "Review Posted!", Toast.LENGTH_SHORT).show();
                     etComment.setText("");
-                    loadReviews(cafeId);
+                    rbRating.setRating(0);
+                    loadReviews(cafeId); // Refresh list
                 })
                 .addOnFailureListener(e -> {
-                    Toast.makeText(this, "Failed to post review", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(this, "Failed: " + e.getMessage(), Toast.LENGTH_SHORT).show();
                 });
     }
 
-    private void loadReviews(String cafeId) {
+    private void loadReviews(String currentCafeId) {
         llReviewsContainer.removeAllViews();
 
-        db.collection("reviews").document(cafeId).collection("reviews")
+        // --- NEW QUERY: Get reviews ONLY for this specific Cafe ID ---
+        db.collection("reviews")
+                .whereEqualTo("cafeId", currentCafeId)
                 .get()
                 .addOnSuccessListener(queryDocumentSnapshots -> {
-                    for (com.google.firebase.firestore.QueryDocumentSnapshot doc : queryDocumentSnapshots) {
+                    for (QueryDocumentSnapshot doc : queryDocumentSnapshots) {
                         View view = getLayoutInflater().inflate(R.layout.item_review, null);
 
                         TextView tvUser = view.findViewById(R.id.tvReviewUser);
@@ -157,7 +156,8 @@ public class CafeDetailActivity extends AppCompatActivity {
                         RatingBar rb = view.findViewById(R.id.rbReviewItem);
                         ImageView ivProfile = view.findViewById(R.id.ivReviewProfile);
 
-                        tvUser.setText(doc.getString("user"));
+                        // Use "userName" because we standardized it in submitReview()
+                        tvUser.setText(doc.getString("userName"));
                         tvComment.setText(doc.getString("comment"));
 
                         Double r = doc.getDouble("rating");
@@ -165,11 +165,7 @@ public class CafeDetailActivity extends AppCompatActivity {
 
                         String photo = doc.getString("photoUrl");
                         if (photo != null && !photo.isEmpty()) {
-                            Glide.with(this)
-                                    .load(photo)
-                                    .placeholder(R.drawable.ic_launcher_background)
-                                    .circleCrop()
-                                    .into(ivProfile);
+                            Glide.with(this).load(photo).circleCrop().into(ivProfile);
                         }
                         llReviewsContainer.addView(view);
                     }

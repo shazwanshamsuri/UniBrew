@@ -35,7 +35,7 @@ public class NotificationHelper {
     public static void sendProximityNotification(Context context, Cafe cafe) {
         // 1. Create intent to open the Detail Page when clicked
         Intent intent = new Intent(context, CafeDetailActivity.class);
-        intent.putExtra("cafeId", cafe.getCafeId());
+        intent.putExtra("cafeId", cafe.getId());
         intent.putExtra("cafeName", cafe.getName());
         intent.putExtra("cafeDesc", cafe.getDescription());
         intent.putExtra("cafeImageUrl", cafe.getImageUrl());

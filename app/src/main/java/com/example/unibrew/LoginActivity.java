@@ -1,4 +1,4 @@
-package com.example.unibrew; // Make sure this matches your package name at the top of your file!
+package com.example.unibrew;
 
 import android.content.Intent;
 import android.os.Bundle;
@@ -17,6 +17,8 @@ import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.Task;
 import com.google.firebase.auth.AuthResult;
 import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.firestore.DocumentSnapshot; // IMPORT THIS
+import com.google.firebase.firestore.FirebaseFirestore; // IMPORT THIS
 
 public class LoginActivity extends AppCompatActivity {
 
@@ -24,14 +26,16 @@ public class LoginActivity extends AppCompatActivity {
     private Button btnLogin;
     private TextView tvRegister;
     private FirebaseAuth mAuth;
+    private FirebaseFirestore db; // Added Firestore variable
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_login);
 
-        // 1. Initialize Firebase Authentication
+        // 1. Initialize Firebase Auth & Firestore
         mAuth = FirebaseAuth.getInstance();
+        db = FirebaseFirestore.getInstance(); // Initialize Firestore
 
         // 2. Link the Java variables to your XML Layout
         etEmail = findViewById(R.id.etEmail);
@@ -51,12 +55,13 @@ public class LoginActivity extends AppCompatActivity {
         tvRegister.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                // This will open the RegisterActivity (We will create this file next!)
                 Intent intent = new Intent(LoginActivity.this, RegisterActivity.class);
                 startActivity(intent);
             }
         });
     }
+
+    // --- YOUR CUSTOM TOAST METHOD ---
     private void showCustomToast(String message) {
         LayoutInflater inflater = getLayoutInflater();
         View layout = inflater.inflate(R.layout.toast_custom, null);
@@ -66,16 +71,16 @@ public class LoginActivity extends AppCompatActivity {
         text.setText(message);
 
         // Create and show the toast
-        android.widget.Toast toast = new android.widget.Toast(getApplicationContext());
-        toast.setDuration(android.widget.Toast.LENGTH_SHORT);
+        Toast toast = new Toast(getApplicationContext());
+        toast.setDuration(Toast.LENGTH_SHORT);
         toast.setView(layout);
         toast.show();
     }
+
     private void loginUser() {
         String email = etEmail.getText().toString();
         String password = etPassword.getText().toString();
 
-        // Basic Check: Are the fields empty?
         if (TextUtils.isEmpty(email)) {
             etEmail.setError("Email is required");
             return;
@@ -91,18 +96,45 @@ public class LoginActivity extends AppCompatActivity {
                     @Override
                     public void onComplete(@NonNull Task<AuthResult> task) {
                         if (task.isSuccessful()) {
-                            // Login Success: Go to Main Dashboard
-                            Toast.makeText(LoginActivity.this, "Login Successful!", Toast.LENGTH_SHORT).show();
-                            Intent intent = new Intent(LoginActivity.this, MainActivity.class);
-                            startActivity(intent);
-                            finish(); // Close login activity so user can't go back
+                            // Login details are correct... NOW check the role!
+                            checkUserRole();
                         } else {
-                            // Login Failed
-                            Toast.makeText(LoginActivity.this, "Authentication Failed: " + task.getException().getMessage(), Toast.LENGTH_SHORT).show();
+                            showCustomToast("Login Failed: " + task.getException().getMessage());
                         }
                     }
                 });
     }
 
+    // --- NEW METHOD: CHECKS IF USER IS ADMIN OR NORMAL ---
+    private void checkUserRole() {
+        String userId = mAuth.getCurrentUser().getUid();
 
+        db.collection("users").document(userId).get()
+                .addOnSuccessListener(documentSnapshot -> {
+                    if (documentSnapshot.exists()) {
+                        String role = documentSnapshot.getString("role");
+
+                        if (role != null && role.equals("admin")) {
+                            // === ADMIN LOGIN ===
+                            showCustomToast("Welcome, Admin!");
+                            Intent intent = new Intent(LoginActivity.this, AdminDashboardActivity.class);
+                            startActivity(intent);
+                        } else {
+                            // === NORMAL USER LOGIN ===
+                            showCustomToast("Login Successful!");
+                            Intent intent = new Intent(LoginActivity.this, MainActivity.class);
+                            startActivity(intent);
+                        }
+                        finish(); // Close login page
+                    } else {
+                        // Document doesn't exist (e.g. older user), default to Main
+                        showCustomToast("Login Successful!");
+                        startActivity(new Intent(LoginActivity.this, MainActivity.class));
+                        finish();
+                    }
+                })
+                .addOnFailureListener(e -> {
+                    showCustomToast("Error checking role: " + e.getMessage());
+                });
+    }
 }

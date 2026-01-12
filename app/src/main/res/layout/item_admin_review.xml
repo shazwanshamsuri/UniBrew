@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_margin="8dp"
+    app:cardCornerRadius="8dp">
+
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="12dp">
+
+        <TextView
+            android:id="@+id/tvAdminRevCafe"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Cafe Name"
+            android:textStyle="bold"
+            android:textSize="18sp"
+            android:textColor="@color/black"/>
+
+        <TextView
+            android:id="@+id/tvAdminRevRating"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentEnd="true"
+            android:text="5★"
+            android:textColor="#FF9800"/>
+
+        <TextView
+            android:id="@+id/tvAdminRevUser"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_below="@id/tvAdminRevCafe"
+            android:text="By: User"
+            android:textSize="12sp"/>
+
+        <TextView
+            android:id="@+id/tvAdminRevComment"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_below="@id/tvAdminRevUser"
+            android:layout_marginTop="8dp"
+            android:layout_toStartOf="@id/btnDeleteReview"
+            android:text="This is a review comment."/>
+
+        <ImageButton
+            android:id="@+id/btnDeleteReview"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_alignParentEnd="true"
+            android:layout_below="@id/tvAdminRevRating"
+            android:layout_marginTop="8dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@android:drawable/ic_menu_delete"
+            app:tint="#F44336"/>
+
+    </RelativeLayout>
+</androidx.cardview.widget.CardView>

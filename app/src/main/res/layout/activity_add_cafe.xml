@@ -14,13 +14,15 @@
         android:textSize="24sp"
         android:textStyle="bold"
         android:textColor="@color/coffee_dark"
+        android:fontFamily="sans-serif-rounded"
         android:layout_marginBottom="16dp"/>
 
     <androidx.cardview.widget.CardView
         android:layout_width="match_parent"
         android:layout_height="120dp"
         android:layout_marginBottom="12dp"
-        app:cardCornerRadius="16dp">
+        app:cardCornerRadius="16dp"
+        app:cardElevation="4dp">
 
         <ImageView
             android:id="@+id/ivCafePreview"
@@ -28,14 +30,16 @@
             android:layout_height="match_parent"
             android:src="@drawable/ic_cute_camera"
             android:scaleType="centerInside"
-            android:background="#EEE" />
+            android:background="#F5F5F5" />
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Tap to Add Photo"
-            android:layout_gravity="center"
-            android:textColor="#888"/>
+            android:layout_gravity="center|bottom"
+            android:layout_marginBottom="10dp"
+            android:textColor="#8D6E63"
+            android:textSize="12sp"/>
     </androidx.cardview.widget.CardView>
 
     <EditText
@@ -44,7 +48,11 @@
         android:layout_height="50dp"
         android:background="@drawable/bg_rounded_input"
         android:hint="Café Name"
+        android:textColor="#3E2723"
+        android:textColorHint="#A1887F"
         android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:inputType="textCapWords"
         android:layout_marginBottom="12dp"/>
 
     <EditText
@@ -53,7 +61,11 @@
         android:layout_height="50dp"
         android:background="@drawable/bg_rounded_input"
         android:hint="Description (e.g., Best latte!)"
+        android:textColor="#3E2723"
+        android:textColorHint="#A1887F"
         android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:inputType="textCapSentences"
         android:layout_marginBottom="12dp"/>
 
     <TextView
@@ -61,6 +73,7 @@
         android:layout_height="wrap_content"
         android:text="Drag map to center marker:"
         android:textColor="@color/coffee_primary"
+        android:textStyle="bold"
         android:textSize="12sp"
         android:layout_marginBottom="4dp"/>
 
@@ -69,6 +82,7 @@
         android:layout_height="0dp"
         android:layout_weight="1"
         app:cardCornerRadius="16dp"
+        app:cardElevation="4dp"
         android:layout_marginBottom="12dp">
 
         <FrameLayout
@@ -99,6 +113,8 @@
         android:background="@drawable/bg_rounded_button"
         android:text="Save Location"
         android:textColor="@color/white"
-        android:textStyle="bold"/>
+        android:textStyle="bold"
+        android:textAllCaps="false"
+        />
 
 </LinearLayout>

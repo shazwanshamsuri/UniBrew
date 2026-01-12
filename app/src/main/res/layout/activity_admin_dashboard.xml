@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/cream_background"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_horizontal"
+        android:orientation="vertical"
+        android:padding="24dp">
+
+        <ImageView
+            android:id="@+id/ivAdminHeader"
+            android:layout_width="120dp"
+            android:layout_height="120dp"
+            android:layout_marginTop="32dp"
+            android:src="@drawable/kopibara_icon"
+            android:scaleType="centerInside" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:layout_marginBottom="40dp"
+            android:fontFamily="sans-serif-rounded"
+            android:text="Admin Panel"
+            android:textColor="@color/coffee_dark"
+            android:textSize="28sp"
+            android:textStyle="bold" />
+
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cardCornerRadius="24dp"
+            app:cardElevation="4dp"
+            app:strokeWidth="0dp"
+            app:cardBackgroundColor="@color/white">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnManageCafes"
+                    style="@style/Widget.MaterialComponents.Button.TextButton.Icon"
+                    android:layout_width="match_parent"
+                    android:layout_height="70dp"
+                    android:text="Manage Cafes"
+                    android:textColor="@color/coffee_dark"
+                    android:textSize="16sp"
+                    android:textAllCaps="false"
+                    android:gravity="start|center_vertical"
+                    android:paddingStart="20dp"
+                    app:icon="@android:drawable/ic_menu_directions"
+                    app:iconTint="@color/coffee_dark"
+                    app:iconPadding="16dp" />
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:background="#EEEEEE"
+                    android:layout_marginHorizontal="16dp"/>
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnManageUsers"
+                    style="@style/Widget.MaterialComponents.Button.TextButton.Icon"
+                    android:layout_width="match_parent"
+                    android:layout_height="70dp"
+                    android:text="Manage Users"
+                    android:textColor="@color/coffee_dark"
+                    android:textSize="16sp"
+                    android:textAllCaps="false"
+                    android:gravity="start|center_vertical"
+                    android:paddingStart="20dp"
+                    app:icon="@android:drawable/ic_menu_myplaces"
+                    app:iconTint="@color/coffee_dark"
+                    app:iconPadding="16dp" />
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:background="#EEEEEE"
+                    android:layout_marginHorizontal="16dp"/>
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnManageReviews"
+                    style="@style/Widget.MaterialComponents.Button.TextButton.Icon"
+                    android:layout_width="match_parent"
+                    android:layout_height="70dp"
+                    android:text="Manage Reviews"
+                    android:textColor="@color/coffee_dark"
+                    android:textSize="16sp"
+                    android:textAllCaps="false"
+                    android:gravity="start|center_vertical"
+                    android:paddingStart="20dp"
+                    app:icon="@android:drawable/stat_notify_chat"
+                    app:iconTint="@color/coffee_dark"
+                    app:iconPadding="16dp" />
+
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <Space
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnAdminLogout"
+            android:layout_width="match_parent"
+            android:layout_height="55dp"
+            android:layout_marginTop="32dp"
+            android:text="Log Out"
+            android:textColor="#D32F2F"
+            app:backgroundTint="#FFEBEE"
+            app:cornerRadius="16dp"
+            android:textAllCaps="false"
+            android:textStyle="bold"
+            app:strokeColor="#FFCDD2"
+            app:strokeWidth="1dp"/>
+
+    </LinearLayout>
+</ScrollView>
