@@ -1,7 +1,6 @@
 package com.example.unibrew;
 
 import android.os.Bundle;
-import android.view.View;
 import android.widget.ImageView;
 import android.widget.Toast;
 
@@ -26,19 +25,17 @@ public class AdminUserListActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_admin_user_list); // Make sure this matches your XML file name
+        setContentView(R.layout.activity_admin_user_list);
 
         // 1. Initialize Firestore
         db = FirebaseFirestore.getInstance();
 
-        // 2. Link Variables to XML
-        // Note: Make sure your XML has a RecyclerView with this ID!
+        // 2. Link Variables
         recyclerView = findViewById(R.id.rvAdminUserList);
         btnBack = findViewById(R.id.btnBack);
 
         if (recyclerView == null) {
-            // Safety check in case you haven't pasted the XML layout code yet
-            Toast.makeText(this, "Error: RecyclerView not found in XML", Toast.LENGTH_LONG).show();
+            Toast.makeText(this, "Error: RecyclerView not found", Toast.LENGTH_LONG).show();
             return;
         }
 
@@ -69,8 +66,14 @@ public class AdminUserListActivity extends AppCompatActivity {
                         for (DocumentSnapshot d : list) {
                             User user = d.toObject(User.class);
 
-                            // --- CRITICAL FIX: Manually set the ID ---
                             if (user != null) {
+                                // --- SAFETY FILTER ---
+                                // If this is the Admin account, SKIP it!
+                                if ("admin@gmail.com".equals(user.getEmail())) {
+                                    continue;
+                                }
+                                // ---------------------
+
                                 user.setUserId(d.getId());
                                 userList.add(user);
                             }
