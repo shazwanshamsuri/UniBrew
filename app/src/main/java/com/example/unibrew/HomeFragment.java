@@ -113,8 +113,8 @@ public class HomeFragment extends Fragment {
 
                     float distanceInMeters = results[0];
 
-                    if (distanceInMeters < 1000) {
-                        NotificationHelper.sendProximityNotification(requireContext(), cafe);
+                    if (distanceInMeters < 250) {
+                        NotificationHelper.sendProximityNotification(requireContext(), cafe.getName(), cafe.getId());
                         break;
                     }
                 }
