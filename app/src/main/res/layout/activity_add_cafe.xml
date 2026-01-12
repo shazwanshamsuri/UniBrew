@@ -19,10 +19,10 @@
 
     <androidx.cardview.widget.CardView
         android:layout_width="match_parent"
-        android:layout_height="120dp"
+        android:layout_height="100dp"
         android:layout_marginBottom="12dp"
         app:cardCornerRadius="16dp"
-        app:cardElevation="4dp">
+        app:cardElevation="2dp">
 
         <ImageView
             android:id="@+id/ivCafePreview"
@@ -68,10 +68,42 @@
         android:inputType="textCapSentences"
         android:layout_marginBottom="12dp"/>
 
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginBottom="8dp">
+
+        <EditText
+            android:id="@+id/etGoogleMapLink"
+            android:layout_width="0dp"
+            android:layout_height="50dp"
+            android:layout_weight="1"
+            android:background="@drawable/bg_rounded_input"
+            android:hint="Paste Google Maps Link here..."
+            android:textColor="#3E2723"
+            android:textSize="14sp"
+            android:textColorHint="#A1887F"
+            android:paddingStart="16dp"
+            android:paddingEnd="8dp"
+            android:inputType="textUri"
+            android:maxLines="1" />
+
+        <androidx.appcompat.widget.AppCompatButton
+            android:id="@+id/btnApplyLink"
+            android:layout_width="80dp"
+            android:layout_height="50dp"
+            android:layout_marginStart="8dp"
+            android:background="@drawable/bg_rounded_button"
+            android:text="Search"
+            android:textColor="@color/white"
+            android:textSize="12sp"
+            android:textAllCaps="false" />
+    </LinearLayout>
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Drag map to center marker:"
+        android:text="Or drag map to center marker:"
         android:textColor="@color/coffee_primary"
         android:textStyle="bold"
         android:textSize="12sp"

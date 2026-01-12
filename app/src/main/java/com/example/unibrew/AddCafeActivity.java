@@ -1,9 +1,8 @@
 package com.example.unibrew;
 
 import android.Manifest;
-import android.content.pm.PackageManager;
-import androidx.core.app.ActivityCompat;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Bundle;
 import android.text.TextUtils;
@@ -11,10 +10,15 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.Toast;
+
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 
+import com.google.android.gms.location.FusedLocationProviderClient;
+import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
@@ -25,20 +29,20 @@ import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.storage.FirebaseStorage;
 import com.google.firebase.storage.StorageReference;
 
-import com.google.android.gms.location.FusedLocationProviderClient;
-import com.google.android.gms.location.LocationServices;
-import android.location.Location;
-import androidx.core.content.ContextCompat;
-import android.content.pm.PackageManager;
-import android.Manifest;
-
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class AddCafeActivity extends AppCompatActivity implements OnMapReadyCallback {
 
     private EditText etName, etDesc;
+    // --- NEW LINK FEATURE VARIABLES ---
+    private EditText etMapLink;
+    private Button btnApplyLink;
+    // ---------------------------------
+
     private ImageView ivPreview;
     private Button btnSave;
     private FirebaseFirestore db;
@@ -51,17 +55,23 @@ public class AddCafeActivity extends AppCompatActivity implements OnMapReadyCall
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_add_cafe);
 
-        // Initialize the location client
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
-
         db = FirebaseFirestore.getInstance();
 
         etName = findViewById(R.id.etCafeName);
         etDesc = findViewById(R.id.etCafeDesc);
+
+        // --- NEW LINK FEATURE INITIALIZATION ---
+        // (Make sure to add these IDs in your XML in the next step!)
+        etMapLink = findViewById(R.id.etGoogleMapLink);
+        btnApplyLink = findViewById(R.id.btnApplyLink);
+
+        btnApplyLink.setOnClickListener(v -> parseGoogleMapsLink());
+        // ---------------------------------------
+
         ivPreview = findViewById(R.id.ivCafePreview);
         btnSave = findViewById(R.id.btnSaveCafe);
 
-        // Pick Image Logic
         ivPreview.setOnClickListener(v -> {
             Intent intent = new Intent();
             intent.setType("image/*");
@@ -78,6 +88,40 @@ public class AddCafeActivity extends AppCompatActivity implements OnMapReadyCall
         btnSave.setOnClickListener(v -> saveCafeProcess());
     }
 
+    // --- NEW LOGIC TO FIND COORDINATES FROM LINK ---
+    private void parseGoogleMapsLink() {
+        String url = etMapLink.getText().toString().trim();
+
+        if (url.isEmpty()) {
+            Toast.makeText(this, "Paste a Google Maps link first", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        // Regex to find patterns like "@3.0730,101.5034" in the URL
+        // It looks for: "@" then "numbers.numbers" then "," then "numbers.numbers"
+        Pattern pattern = Pattern.compile("@(-?\\d+\\.\\d+),(-?\\d+\\.\\d+)");
+        Matcher matcher = pattern.matcher(url);
+
+        if (matcher.find()) {
+            try {
+                // Group 1 is Latitude, Group 2 is Longitude
+                double lat = Double.parseDouble(matcher.group(1));
+                double lng = Double.parseDouble(matcher.group(2));
+                LatLng target = new LatLng(lat, lng);
+
+                if (mMap != null) {
+                    mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(target, 17f));
+                    Toast.makeText(this, "Location Found!", Toast.LENGTH_SHORT).show();
+                }
+            } catch (NumberFormatException e) {
+                Toast.makeText(this, "Error parsing coordinates", Toast.LENGTH_SHORT).show();
+            }
+        } else {
+            Toast.makeText(this, "Could not find location in this link. Use the full browser link.", Toast.LENGTH_LONG).show();
+        }
+    }
+    // ----------------------------------------------
+
     @Override
     protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
@@ -92,26 +136,21 @@ public class AddCafeActivity extends AppCompatActivity implements OnMapReadyCall
         mMap = googleMap;
         mMap.getUiSettings().setZoomControlsEnabled(true);
 
-        // Check permissions
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
                 == PackageManager.PERMISSION_GRANTED) {
 
-            // 1. Enable the blue dot and "Find Me" button
             mMap.setMyLocationEnabled(true);
 
-            // 2. Fetch current location and move camera automatically
             fusedLocationClient.getLastLocation().addOnSuccessListener(this, location -> {
                 if (location != null) {
                     LatLng currentLatLng = new LatLng(location.getLatitude(), location.getLongitude());
                     mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(currentLatLng, 15f));
                 } else {
-                    // Fallback if location is null (e.g., GPS turned off)
                     LatLng uitm = new LatLng(3.0698, 101.5037);
                     mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(uitm, 15f));
                 }
             });
         } else {
-            // Request permission if not already granted
             ActivityCompat.requestPermissions(this,
                     new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, 1001);
         }
@@ -120,38 +159,15 @@ public class AddCafeActivity extends AppCompatActivity implements OnMapReadyCall
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-
-        if (requestCode == 1001) { // This matches the code used in your request
+        if (requestCode == 1001) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                // Permission GRANTED: Trigger the location fetch again
                 onMapReady(mMap);
             } else {
-                // Permission DENIED: Show a friendly message or explanation
                 Toast.makeText(this, "Location denied. Map will stay at default location.", Toast.LENGTH_LONG).show();
-
-                // If the permission is critical, you can show a dialog or disable features
-                if (!ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.ACCESS_FINE_LOCATION)) {
-                    // User checked "Don't ask again"
-                    showSettingsDialog();
-                }
             }
         }
     }
 
-    // Optional: Guide them to settings if they permanently denied it
-    private void showSettingsDialog() {
-        new androidx.appcompat.app.AlertDialog.Builder(this)
-                .setTitle("Permission Needed")
-                .setMessage("Location permission is required for this feature. Please enable it in app settings.")
-                .setPositiveButton("Settings", (dialog, which) -> {
-                    Intent intent = new Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
-                    Uri uri = Uri.fromParts("package", getPackageName(), null);
-                    intent.setData(uri);
-                    startActivity(intent);
-                })
-                .setNegativeButton("Cancel", null)
-                .show();
-    }
     private void saveCafeProcess() {
         String name = etName.getText().toString();
 

@@ -18,7 +18,6 @@ import com.bumptech.glide.Glide;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.FirebaseFirestore;
-import com.google.firebase.firestore.Query;
 import com.google.firebase.firestore.QueryDocumentSnapshot;
 
 import java.util.HashMap;
@@ -42,7 +41,6 @@ public class CafeDetailActivity extends AppCompatActivity {
 
         db = FirebaseFirestore.getInstance();
 
-        // 1. Initialize Views
         tvName = findViewById(R.id.tvDetailName);
         tvDesc = findViewById(R.id.tvDetailDesc);
         ivCafeImage = findViewById(R.id.ivCafeImage);
@@ -52,7 +50,6 @@ public class CafeDetailActivity extends AppCompatActivity {
         btnSubmitReview = findViewById(R.id.btnSubmitReview);
         Button btnNavigate = findViewById(R.id.btnNavigate);
 
-        // 2. Get Data from Intent
         cafeId = getIntent().getStringExtra("cafeId");
         cafeName = getIntent().getStringExtra("cafeName");
         String cafeDesc = getIntent().getStringExtra("cafeDesc");
@@ -60,7 +57,6 @@ public class CafeDetailActivity extends AppCompatActivity {
         double lat = getIntent().getDoubleExtra("cafeLat", 0.0);
         double lng = getIntent().getDoubleExtra("cafeLng", 0.0);
 
-        // 3. Set Text & Image
         if (cafeName != null) tvName.setText(cafeName);
         if (cafeDesc != null) tvDesc.setText(cafeDesc);
 
@@ -70,7 +66,6 @@ public class CafeDetailActivity extends AppCompatActivity {
                     .centerCrop().into(ivCafeImage);
         }
 
-        // 4. Load Reviews (Using the new "Flattened" Query)
         if (cafeId != null) {
             loadReviews(cafeId);
         } else {
@@ -78,10 +73,8 @@ public class CafeDetailActivity extends AppCompatActivity {
             finish();
         }
 
-        // 5. Submit Logic
         btnSubmitReview.setOnClickListener(v -> submitReview());
 
-        // 6. Navigation Logic
         if (btnNavigate != null) {
             btnNavigate.setOnClickListener(v -> {
                 if (lat != 0.0 && lng != 0.0) {
@@ -109,41 +102,58 @@ public class CafeDetailActivity extends AppCompatActivity {
             return;
         }
 
-        // --- PREPARE DATA ---
-        Map<String, Object> review = new HashMap<>();
-
-        // CRITICAL: We save the Cafe ID so we can find this review later!
-        review.put("cafeId", cafeId);
-        review.put("cafeName", cafeName);
-        review.put("comment", comment);
-        review.put("rating", rating);
-
         FirebaseUser currentUser = FirebaseAuth.getInstance().getCurrentUser();
-        String name = (currentUser != null && currentUser.getDisplayName() != null) ? currentUser.getDisplayName() : "Anonymous";
-        String photo = (currentUser != null && currentUser.getPhotoUrl() != null) ? currentUser.getPhotoUrl().toString() : "";
+        if (currentUser == null) {
+            Toast.makeText(this, "You must be logged in!", Toast.LENGTH_SHORT).show();
+            return;
+        }
 
-        // Standardized Keys (Matching your Admin Adapter)
-        review.put("userName", name);
-        review.put("photoUrl", photo);
+        // --- FIX START: Fetch latest data from Firestore "users" collection ---
+        db.collection("users").document(currentUser.getUid()).get()
+                .addOnSuccessListener(documentSnapshot -> {
 
-        // --- SAVE TO "reviews" COLLECTION (FLAT STRUCTURE) ---
-        db.collection("reviews")
-                .add(review)
-                .addOnSuccessListener(doc -> {
-                    Toast.makeText(this, "Review Posted!", Toast.LENGTH_SHORT).show();
-                    etComment.setText("");
-                    rbRating.setRating(0);
-                    loadReviews(cafeId); // Refresh list
+                    // 1. Get the FRESH data from the database
+                    String currentUserName = documentSnapshot.getString("name");
+                    String currentUserPhoto = documentSnapshot.getString("imageURL");
+
+                    // Fallback if database is empty
+                    if (currentUserName == null) currentUserName = currentUser.getDisplayName();
+                    if (currentUserPhoto == null && currentUser.getPhotoUrl() != null) {
+                        currentUserPhoto = currentUser.getPhotoUrl().toString();
+                    }
+
+                    // 2. Prepare the Review Data
+                    Map<String, Object> review = new HashMap<>();
+                    review.put("cafeId", cafeId);
+                    review.put("cafeName", cafeName);
+                    review.put("comment", comment);
+                    review.put("rating", rating);
+                    review.put("userName", currentUserName);
+                    review.put("photoUrl", currentUserPhoto); // Now using the fresh URL
+
+                    // 3. Save to Firestore
+                    db.collection("reviews")
+                            .add(review)
+                            .addOnSuccessListener(doc -> {
+                                Toast.makeText(this, "Review Posted!", Toast.LENGTH_SHORT).show();
+                                etComment.setText("");
+                                rbRating.setRating(0);
+                                loadReviews(cafeId);
+                            })
+                            .addOnFailureListener(e -> {
+                                Toast.makeText(this, "Failed: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                            });
+
                 })
                 .addOnFailureListener(e -> {
-                    Toast.makeText(this, "Failed: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                    Toast.makeText(this, "Could not fetch user profile", Toast.LENGTH_SHORT).show();
                 });
+        // --- FIX END ---
     }
 
     private void loadReviews(String currentCafeId) {
         llReviewsContainer.removeAllViews();
 
-        // --- NEW QUERY: Get reviews ONLY for this specific Cafe ID ---
         db.collection("reviews")
                 .whereEqualTo("cafeId", currentCafeId)
                 .get()
@@ -156,7 +166,6 @@ public class CafeDetailActivity extends AppCompatActivity {
                         RatingBar rb = view.findViewById(R.id.rbReviewItem);
                         ImageView ivProfile = view.findViewById(R.id.ivReviewProfile);
 
-                        // Use "userName" because we standardized it in submitReview()
                         tvUser.setText(doc.getString("userName"));
                         tvComment.setText(doc.getString("comment"));
 
