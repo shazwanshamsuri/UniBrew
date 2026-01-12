@@ -1,9 +1,13 @@
 package com.example.unibrew;
 
 import android.Manifest;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.provider.MediaStore;
@@ -18,6 +22,8 @@ import androidx.annotation.Nullable;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
+import androidx.core.app.NotificationCompat;
+import androidx.core.app.NotificationManagerCompat;
 import androidx.core.content.ContextCompat;
 import androidx.core.content.FileProvider;
 
@@ -38,9 +44,9 @@ import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
-import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -59,11 +65,13 @@ public class AddCafeActivity extends AppCompatActivity implements OnMapReadyCall
     private Uri imageUri;
     private FusedLocationProviderClient fusedLocationClient;
 
-    // --- NEW CAMERA CONSTANTS ---
+    // --- NEW CONSTANTS ---
     private static final int REQUEST_IMAGE_PICK = 200;
     private static final int REQUEST_IMAGE_CAPTURE = 201;
     private static final int REQUEST_PERMISSION_CAMERA = 202;
     private static final int REQUEST_PERMISSION_LOCATION = 1001;
+    private static final int REQUEST_PERMISSION_NOTIFICATION = 1002; // NEW
+    private static final String CHANNEL_ID = "cafe_updates_channel"; // NEW
     private String currentPhotoPath;
 
     @Override
@@ -71,13 +79,20 @@ public class AddCafeActivity extends AppCompatActivity implements OnMapReadyCall
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_add_cafe);
 
+        // --- NEW: Create Notification Channel (Required for Android 8+) ---
+        createNotificationChannel();
+        // -----------------------------------------------------------------
+
+        // --- NEW: Ask for Notification Permission (Android 13+) ---
+        checkNotificationPermission();
+        // ----------------------------------------------------------
+
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
         db = FirebaseFirestore.getInstance();
 
         etName = findViewById(R.id.etCafeName);
         etDesc = findViewById(R.id.etCafeDesc);
 
-        // --- LINK FEATURE INIT ---
         etMapLink = findViewById(R.id.etGoogleMapLink);
         btnApplyLink = findViewById(R.id.btnApplyLink);
         btnApplyLink.setOnClickListener(v -> parseGoogleMapsLink());
@@ -85,7 +100,6 @@ public class AddCafeActivity extends AppCompatActivity implements OnMapReadyCall
         ivPreview = findViewById(R.id.ivCafePreview);
         btnSave = findViewById(R.id.btnSaveCafe);
 
-        // 1. UPDATED: Show Option Dialog (Camera or Gallery)
         ivPreview.setOnClickListener(v -> showImageSourceOptions());
 
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
@@ -97,7 +111,47 @@ public class AddCafeActivity extends AppCompatActivity implements OnMapReadyCall
         btnSave.setOnClickListener(v -> saveCafeProcess());
     }
 
-    // --- NEW: Pop-up Dialog ---
+    // --- NEW: Create Notification Channel ---
+    private void createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            CharSequence name = "Cafe Updates";
+            String description = "Notifications when a cafe is added";
+            int importance = NotificationManager.IMPORTANCE_DEFAULT;
+            NotificationChannel channel = new NotificationChannel(CHANNEL_ID, name, importance);
+            channel.setDescription(description);
+            NotificationManager notificationManager = getSystemService(NotificationManager.class);
+            notificationManager.createNotificationChannel(channel);
+        }
+    }
+
+    // --- NEW: Check Notification Permission ---
+    private void checkNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.POST_NOTIFICATIONS}, REQUEST_PERMISSION_NOTIFICATION);
+            }
+        }
+    }
+
+    // --- NEW: Send the Notification ---
+    private void sendSuccessNotification(String cafeName) {
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            // Permission not granted? Just skip the notification.
+            return;
+        }
+
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
+                .setSmallIcon(android.R.drawable.ic_dialog_info) // You can change this to your app icon
+                .setContentTitle("New Cafe Added!")
+                .setContentText("Success! " + cafeName + " has been added to the map.")
+                .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+                .setAutoCancel(true);
+
+        NotificationManagerCompat notificationManager = NotificationManagerCompat.from(this);
+        notificationManager.notify(1, builder.build());
+    }
+
+    // --- EXISTING CAMERA LOGIC ---
     private void showImageSourceOptions() {
         String[] options = {"Take Photo", "Choose from Gallery"};
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
@@ -112,7 +166,6 @@ public class AddCafeActivity extends AppCompatActivity implements OnMapReadyCall
         builder.show();
     }
 
-    // --- NEW: Check Permission ---
     private void checkCameraPermissionAndOpen() {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.CAMERA}, REQUEST_PERMISSION_CAMERA);
@@ -121,7 +174,6 @@ public class AddCafeActivity extends AppCompatActivity implements OnMapReadyCall
         }
     }
 
-    // --- NEW: Open Camera ---
     private void dispatchTakePictureIntent() {
         Intent takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
         if (takePictureIntent.resolveActivity(getPackageManager()) != null) {
@@ -142,7 +194,6 @@ public class AddCafeActivity extends AppCompatActivity implements OnMapReadyCall
         }
     }
 
-    // --- NEW: Create File Helper ---
     private File createImageFile() throws IOException {
         String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
         String imageFileName = "JPEG_" + timeStamp + "_";
@@ -159,7 +210,6 @@ public class AddCafeActivity extends AppCompatActivity implements OnMapReadyCall
         startActivityForResult(intent, REQUEST_IMAGE_PICK);
     }
 
-    // --- UPDATED: Handle Results (Gallery, Camera, Permission) ---
     @Override
     protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
@@ -179,7 +229,6 @@ public class AddCafeActivity extends AppCompatActivity implements OnMapReadyCall
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
 
-        // Handle Location Permission
         if (requestCode == REQUEST_PERMISSION_LOCATION) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 onMapReady(mMap);
@@ -188,7 +237,6 @@ public class AddCafeActivity extends AppCompatActivity implements OnMapReadyCall
             }
         }
 
-        // Handle Camera Permission
         if (requestCode == REQUEST_PERMISSION_CAMERA) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 dispatchTakePictureIntent();
@@ -198,7 +246,6 @@ public class AddCafeActivity extends AppCompatActivity implements OnMapReadyCall
         }
     }
 
-    // --- LINK LOGIC (Unchanged) ---
     private void parseGoogleMapsLink() {
         String url = etMapLink.getText().toString().trim();
         if (url.isEmpty()) {
@@ -298,6 +345,10 @@ public class AddCafeActivity extends AppCompatActivity implements OnMapReadyCall
 
         db.collection("cafes").add(cafe)
                 .addOnSuccessListener(doc -> {
+                    // --- UPDATED: TRIGGER NOTIFICATION HERE ---
+                    sendSuccessNotification(name);
+                    // ------------------------------------------
+
                     Toast.makeText(this, "Cafe Saved!", Toast.LENGTH_SHORT).show();
                     finish();
                 });
