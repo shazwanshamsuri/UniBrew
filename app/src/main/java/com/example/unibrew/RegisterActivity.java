@@ -1,8 +1,12 @@
 package com.example.unibrew;
 
+import android.Manifest;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Environment;
+import android.provider.MediaStore;
 import android.text.TextUtils;
 import android.widget.Button;
 import android.widget.EditText;
@@ -10,17 +14,27 @@ import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
+import androidx.core.content.FileProvider;
 
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.auth.UserProfileChangeRequest;
-import com.google.firebase.firestore.FirebaseFirestore; // UPDATED: Using Firestore
+import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.storage.FirebaseStorage;
 import com.google.firebase.storage.StorageReference;
 
+import java.io.File;
+import java.io.IOException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 public class RegisterActivity extends AppCompatActivity {
@@ -31,8 +45,14 @@ public class RegisterActivity extends AppCompatActivity {
     private ImageView ivProfile;
 
     private FirebaseAuth mAuth;
-    private FirebaseFirestore db; // UPDATED: Firestore Instance
+    private FirebaseFirestore db;
     private Uri imageUri;
+
+    // --- NEW CONSTANTS FOR CAMERA ---
+    private static final int REQUEST_IMAGE_PICK = 100;
+    private static final int REQUEST_IMAGE_CAPTURE = 101;
+    private static final int REQUEST_PERMISSION_CAMERA = 102;
+    private String currentPhotoPath; // To remember where the camera saved the file
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -40,7 +60,7 @@ public class RegisterActivity extends AppCompatActivity {
         setContentView(R.layout.activity_register);
 
         mAuth = FirebaseAuth.getInstance();
-        db = FirebaseFirestore.getInstance(); // UPDATED: Initialize Firestore
+        db = FirebaseFirestore.getInstance();
 
         etEmail = findViewById(R.id.etRegEmail);
         etPassword = findViewById(R.id.etRegPassword);
@@ -49,31 +69,109 @@ public class RegisterActivity extends AppCompatActivity {
         tvLoginLink = findViewById(R.id.tvLoginLink);
         ivProfile = findViewById(R.id.ivProfileReg);
 
-        // 1. Logic to Pick Image
-        ivProfile.setOnClickListener(v -> {
-            Intent intent = new Intent();
-            intent.setType("image/*");
-            intent.setAction(Intent.ACTION_GET_CONTENT);
-            startActivityForResult(intent, 100);
-        });
+        // 1. UPDATED: Show Option Dialog instead of just Gallery
+        ivProfile.setOnClickListener(v -> showImageSourceOptions());
 
-        // 2. Logic to Register
         btnRegister.setOnClickListener(v -> registerUser());
 
-        // 3. Go to Login
         tvLoginLink.setOnClickListener(v -> {
             startActivity(new Intent(RegisterActivity.this, LoginActivity.class));
             finish();
         });
     }
 
-    // Handle Image Pick Result
+    // --- NEW: Pop-up Dialog to choose Camera or Gallery ---
+    private void showImageSourceOptions() {
+        String[] options = {"Take Photo", "Choose from Gallery"};
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Select Profile Picture");
+        builder.setItems(options, (dialog, which) -> {
+            if (which == 0) {
+                checkCameraPermissionAndOpen();
+            } else {
+                openGallery();
+            }
+        });
+        builder.show();
+    }
+
+    // --- NEW: Camera Permission Check ---
+    private void checkCameraPermissionAndOpen() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.CAMERA}, REQUEST_PERMISSION_CAMERA);
+        } else {
+            dispatchTakePictureIntent();
+        }
+    }
+
+    // --- NEW: Logic to Open Camera ---
+    private void dispatchTakePictureIntent() {
+        Intent takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+        // Ensure that there's a camera activity to handle the intent
+        if (takePictureIntent.resolveActivity(getPackageManager()) != null) {
+            File photoFile = null;
+            try {
+                photoFile = createImageFile();
+            } catch (IOException ex) {
+                Toast.makeText(this, "Error creating file", Toast.LENGTH_SHORT).show();
+            }
+
+            if (photoFile != null) {
+                // Get the safe URI from FileProvider
+                Uri photoURI = FileProvider.getUriForFile(this,
+                        "com.example.unibrew.fileprovider", // MUST MATCH AndroidManifest
+                        photoFile);
+                takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, photoURI);
+                startActivityForResult(takePictureIntent, REQUEST_IMAGE_CAPTURE);
+            }
+        }
+    }
+
+    // --- NEW: Create a File to save the photo ---
+    private File createImageFile() throws IOException {
+        String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
+        String imageFileName = "JPEG_" + timeStamp + "_";
+        File storageDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES);
+        File image = File.createTempFile(imageFileName, ".jpg", storageDir);
+        currentPhotoPath = image.getAbsolutePath(); // Save path to use later
+        return image;
+    }
+
+    private void openGallery() {
+        Intent intent = new Intent();
+        intent.setType("image/*");
+        intent.setAction(Intent.ACTION_GET_CONTENT);
+        startActivityForResult(intent, REQUEST_IMAGE_PICK);
+    }
+
+    // --- UPDATED: Handle Both Results ---
     @Override
     protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == 100 && resultCode == RESULT_OK && data != null) {
-            imageUri = data.getData();
-            ivProfile.setImageURI(imageUri);
+        if (resultCode == RESULT_OK) {
+            if (requestCode == REQUEST_IMAGE_PICK && data != null) {
+                // Gallery Logic
+                imageUri = data.getData();
+                ivProfile.setImageURI(imageUri);
+            } else if (requestCode == REQUEST_IMAGE_CAPTURE) {
+                // Camera Logic
+                File f = new File(currentPhotoPath);
+                imageUri = Uri.fromFile(f);
+                ivProfile.setImageURI(imageUri);
+            }
+        }
+    }
+
+    // --- NEW: Handle Permission Result ---
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == REQUEST_PERMISSION_CAMERA) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                dispatchTakePictureIntent();
+            } else {
+                Toast.makeText(this, "Camera permission needed to take photos", Toast.LENGTH_SHORT).show();
+            }
         }
     }
 
@@ -89,17 +187,13 @@ public class RegisterActivity extends AppCompatActivity {
 
         Toast.makeText(this, "Creating Account...", Toast.LENGTH_SHORT).show();
 
-        // 1. Create User in Auth
         mAuth.createUserWithEmailAndPassword(email, pass)
                 .addOnCompleteListener(task -> {
                     if (task.isSuccessful()) {
                         FirebaseUser user = mAuth.getCurrentUser();
-
-                        // Check if user uploaded a picture
                         if (imageUri != null) {
                             uploadProfileImage(user, username, email);
                         } else {
-                            // No image? Set default
                             updateUserProfileAndSaveToFirestore(user, username, email, null);
                         }
                     } else {
@@ -113,7 +207,6 @@ public class RegisterActivity extends AppCompatActivity {
 
         ref.putFile(imageUri).addOnSuccessListener(taskSnapshot -> {
             ref.getDownloadUrl().addOnSuccessListener(uri -> {
-                // Now we have the URL, update profile AND save to Firestore
                 updateUserProfileAndSaveToFirestore(user, username, email, uri);
             });
         }).addOnFailureListener(e -> {
@@ -122,7 +215,6 @@ public class RegisterActivity extends AppCompatActivity {
     }
 
     private void updateUserProfileAndSaveToFirestore(FirebaseUser user, String username, String email, Uri photoUrl) {
-        // 1. Update the Auth Profile (For login handling)
         UserProfileChangeRequest.Builder request = new UserProfileChangeRequest.Builder()
                 .setDisplayName(username);
 
@@ -135,18 +227,15 @@ public class RegisterActivity extends AppCompatActivity {
         String finalPhotoString = photoString;
         user.updateProfile(request.build()).addOnCompleteListener(task -> {
             if (task.isSuccessful()) {
-
-                // 2. NOW SAVE TO FIRESTORE (Matches your Console)
                 Map<String, Object> userMap = new HashMap<>();
                 userMap.put("name", username);
                 userMap.put("email", email);
-                userMap.put("role", "user"); // Helpful for your Admin later
+                userMap.put("role", "user");
 
                 if (finalPhotoString != null) {
                     userMap.put("imageURL", finalPhotoString);
                 }
 
-                // Saves to "users" collection -> document "UID"
                 db.collection("users").document(user.getUid())
                         .set(userMap)
                         .addOnSuccessListener(aVoid -> {
