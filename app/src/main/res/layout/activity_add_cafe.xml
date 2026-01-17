@@ -68,6 +68,18 @@
         android:inputType="textCapSentences"
         android:layout_marginBottom="12dp"/>
 
+    <EditText
+        android:id="@+id/etCafePhone"
+        android:layout_width="match_parent"
+        android:layout_height="50dp"
+        android:background="@drawable/bg_rounded_input"
+        android:hint="Phone Number (e.g., 012-3456789)"
+        android:textColor="#3E2723"
+        android:textColorHint="#A1887F"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:inputType="phone"
+        android:layout_marginBottom="12dp"/>
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

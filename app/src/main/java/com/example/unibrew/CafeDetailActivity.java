@@ -34,6 +34,10 @@ public class CafeDetailActivity extends AppCompatActivity {
     private View btnSubmitReview;
     private String cafeName, cafeId;
 
+    // --- NEW: Call Button ---
+    private Button btnCall;
+    // ------------------------
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -49,6 +53,11 @@ public class CafeDetailActivity extends AppCompatActivity {
         etComment = findViewById(R.id.etReviewComment);
         btnSubmitReview = findViewById(R.id.btnSubmitReview);
         Button btnNavigate = findViewById(R.id.btnNavigate);
+
+        // --- NEW: Find Call Button ---
+        // You MUST add this ID to your XML: android:id="@+id/btnCall"
+        btnCall = findViewById(R.id.btnCall);
+        // -----------------------------
 
         cafeId = getIntent().getStringExtra("cafeId");
         cafeName = getIntent().getStringExtra("cafeName");
@@ -68,6 +77,9 @@ public class CafeDetailActivity extends AppCompatActivity {
 
         if (cafeId != null) {
             loadReviews(cafeId);
+            // --- NEW: Fetch Phone Number ---
+            fetchCafeDetails(cafeId);
+            // -------------------------------
         } else {
             Toast.makeText(this, "Error: Cafe ID missing", Toast.LENGTH_SHORT).show();
             finish();
@@ -93,6 +105,33 @@ public class CafeDetailActivity extends AppCompatActivity {
         }
     }
 
+    // --- NEW: Get Phone Number from Database ---
+    private void fetchCafeDetails(String id) {
+        db.collection("cafes").document(id).get().addOnSuccessListener(documentSnapshot -> {
+            if (documentSnapshot.exists()) {
+                String phone = documentSnapshot.getString("phoneNumber");
+                if (phone != null && !phone.isEmpty()) {
+                    setupCallButton(phone);
+                } else {
+                    // Hide button if no phone number exists
+                    if (btnCall != null) btnCall.setVisibility(View.GONE);
+                }
+            }
+        });
+    }
+
+    // --- NEW: Setup Call Button ---
+    private void setupCallButton(String phone) {
+        if (btnCall == null) return;
+
+        btnCall.setVisibility(View.VISIBLE);
+        btnCall.setOnClickListener(v -> {
+            Intent intent = new Intent(Intent.ACTION_DIAL);
+            intent.setData(Uri.parse("tel:" + phone));
+            startActivity(intent);
+        });
+    }
+
     private void submitReview() {
         String comment = etComment.getText().toString();
         float rating = rbRating.getRating();
@@ -108,32 +147,25 @@ public class CafeDetailActivity extends AppCompatActivity {
             return;
         }
 
-        // --- FIX START: Fetch latest data from Firestore "users" collection ---
         db.collection("users").document(currentUser.getUid()).get()
                 .addOnSuccessListener(documentSnapshot -> {
-
-                    // 1. Get the FRESH data from the database
                     String currentUserName = documentSnapshot.getString("name");
                     String currentUserPhoto = documentSnapshot.getString("imageURL");
 
-                    // Fallback if database is empty
                     if (currentUserName == null) currentUserName = currentUser.getDisplayName();
                     if (currentUserPhoto == null && currentUser.getPhotoUrl() != null) {
                         currentUserPhoto = currentUser.getPhotoUrl().toString();
                     }
 
-                    // 2. Prepare the Review Data
                     Map<String, Object> review = new HashMap<>();
                     review.put("cafeId", cafeId);
                     review.put("cafeName", cafeName);
                     review.put("comment", comment);
                     review.put("rating", rating);
                     review.put("userName", currentUserName);
-                    review.put("photoUrl", currentUserPhoto); // Now using the fresh URL
+                    review.put("photoUrl", currentUserPhoto);
 
-                    // 3. Save to Firestore
-                    db.collection("reviews")
-                            .add(review)
+                    db.collection("reviews").add(review)
                             .addOnSuccessListener(doc -> {
                                 Toast.makeText(this, "Review Posted!", Toast.LENGTH_SHORT).show();
                                 etComment.setText("");
@@ -143,12 +175,10 @@ public class CafeDetailActivity extends AppCompatActivity {
                             .addOnFailureListener(e -> {
                                 Toast.makeText(this, "Failed: " + e.getMessage(), Toast.LENGTH_SHORT).show();
                             });
-
                 })
                 .addOnFailureListener(e -> {
                     Toast.makeText(this, "Could not fetch user profile", Toast.LENGTH_SHORT).show();
                 });
-        // --- FIX END ---
     }
 
     private void loadReviews(String currentCafeId) {

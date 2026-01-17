@@ -1,7 +1,9 @@
 package com.example.unibrew;
 
 import android.Manifest;
+import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Bundle;
@@ -22,6 +24,7 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.core.content.FileProvider;
 
+import com.bumptech.glide.Glide; // Make sure this is imported!
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.auth.UserProfileChangeRequest;
@@ -48,11 +51,13 @@ public class RegisterActivity extends AppCompatActivity {
     private FirebaseFirestore db;
     private Uri imageUri;
 
-    // --- NEW CONSTANTS FOR CAMERA ---
+    // --- CONSTANTS ---
     private static final int REQUEST_IMAGE_PICK = 100;
     private static final int REQUEST_IMAGE_CAPTURE = 101;
     private static final int REQUEST_PERMISSION_CAMERA = 102;
-    private String currentPhotoPath; // To remember where the camera saved the file
+
+    // We don't rely on a simple String variable anymore. We use Storage.
+    private String currentPhotoPath;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -69,7 +74,7 @@ public class RegisterActivity extends AppCompatActivity {
         tvLoginLink = findViewById(R.id.tvLoginLink);
         ivProfile = findViewById(R.id.ivProfileReg);
 
-        // 1. UPDATED: Show Option Dialog instead of just Gallery
+        // 1. Show Option Dialog
         ivProfile.setOnClickListener(v -> showImageSourceOptions());
 
         btnRegister.setOnClickListener(v -> registerUser());
@@ -80,7 +85,6 @@ public class RegisterActivity extends AppCompatActivity {
         });
     }
 
-    // --- NEW: Pop-up Dialog to choose Camera or Gallery ---
     private void showImageSourceOptions() {
         String[] options = {"Take Photo", "Choose from Gallery"};
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
@@ -95,7 +99,6 @@ public class RegisterActivity extends AppCompatActivity {
         builder.show();
     }
 
-    // --- NEW: Camera Permission Check ---
     private void checkCameraPermissionAndOpen() {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.CAMERA}, REQUEST_PERMISSION_CAMERA);
@@ -104,10 +107,8 @@ public class RegisterActivity extends AppCompatActivity {
         }
     }
 
-    // --- NEW: Logic to Open Camera ---
     private void dispatchTakePictureIntent() {
         Intent takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
-        // Ensure that there's a camera activity to handle the intent
         if (takePictureIntent.resolveActivity(getPackageManager()) != null) {
             File photoFile = null;
             try {
@@ -117,9 +118,11 @@ public class RegisterActivity extends AppCompatActivity {
             }
 
             if (photoFile != null) {
-                // Get the safe URI from FileProvider
+                // --- FIX: SAVE PATH TO PHONE STORAGE IMMEDIATELY ---
+                savePathToStorage(currentPhotoPath);
+
                 Uri photoURI = FileProvider.getUriForFile(this,
-                        "com.example.unibrew.fileprovider", // MUST MATCH AndroidManifest
+                        "com.example.unibrew.fileprovider",
                         photoFile);
                 takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, photoURI);
                 startActivityForResult(takePictureIntent, REQUEST_IMAGE_CAPTURE);
@@ -127,15 +130,26 @@ public class RegisterActivity extends AppCompatActivity {
         }
     }
 
-    // --- NEW: Create a File to save the photo ---
     private File createImageFile() throws IOException {
         String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
         String imageFileName = "JPEG_" + timeStamp + "_";
         File storageDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES);
         File image = File.createTempFile(imageFileName, ".jpg", storageDir);
-        currentPhotoPath = image.getAbsolutePath(); // Save path to use later
+        currentPhotoPath = image.getAbsolutePath();
         return image;
     }
+
+    // --- NEW: Helper methods to save path to Disk ---
+    private void savePathToStorage(String path) {
+        SharedPreferences prefs = getSharedPreferences("camera_prefs", MODE_PRIVATE);
+        prefs.edit().putString("last_photo_path", path).apply();
+    }
+
+    private String getPathFromStorage() {
+        SharedPreferences prefs = getSharedPreferences("camera_prefs", MODE_PRIVATE);
+        return prefs.getString("last_photo_path", null);
+    }
+    // ------------------------------------------------
 
     private void openGallery() {
         Intent intent = new Intent();
@@ -144,25 +158,34 @@ public class RegisterActivity extends AppCompatActivity {
         startActivityForResult(intent, REQUEST_IMAGE_PICK);
     }
 
-    // --- UPDATED: Handle Both Results ---
+    // --- UPDATED: Retrieve from Disk & Use Glide ---
     @Override
     protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (resultCode == RESULT_OK) {
             if (requestCode == REQUEST_IMAGE_PICK && data != null) {
-                // Gallery Logic
+                // Gallery logic
                 imageUri = data.getData();
-                ivProfile.setImageURI(imageUri);
+                Glide.with(this).load(imageUri).circleCrop().into(ivProfile);
             } else if (requestCode == REQUEST_IMAGE_CAPTURE) {
-                // Camera Logic
-                File f = new File(currentPhotoPath);
-                imageUri = Uri.fromFile(f);
-                ivProfile.setImageURI(imageUri);
+                // Camera logic
+                String path = getPathFromStorage(); // Retrieve from storage
+                if (path != null) {
+                    File f = new File(path);
+                    if (f.exists()) {
+                        imageUri = Uri.fromFile(f);
+                        // Use Glide to load it (More reliable than setImageURI)
+                        Glide.with(this).load(f).circleCrop().into(ivProfile);
+                    } else {
+                        Toast.makeText(this, "Photo file missing", Toast.LENGTH_SHORT).show();
+                    }
+                } else {
+                    Toast.makeText(this, "Error: Path lost", Toast.LENGTH_SHORT).show();
+                }
             }
         }
     }
 
-    // --- NEW: Handle Permission Result ---
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
@@ -170,7 +193,7 @@ public class RegisterActivity extends AppCompatActivity {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 dispatchTakePictureIntent();
             } else {
-                Toast.makeText(this, "Camera permission needed to take photos", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "Camera permission needed", Toast.LENGTH_SHORT).show();
             }
         }
     }

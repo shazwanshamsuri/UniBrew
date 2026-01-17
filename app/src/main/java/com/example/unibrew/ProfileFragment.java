@@ -1,9 +1,13 @@
 package com.example.unibrew;
 
+import android.Manifest;
 import android.app.Activity;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Environment;
+import android.provider.MediaStore;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -14,6 +18,9 @@ import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.appcompat.app.AlertDialog;
+import androidx.core.content.ContextCompat;
+import androidx.core.content.FileProvider;
 import androidx.fragment.app.Fragment;
 
 import com.bumptech.glide.Glide;
@@ -27,7 +34,12 @@ import com.google.firebase.firestore.SetOptions;
 import com.google.firebase.storage.FirebaseStorage;
 import com.google.firebase.storage.StorageReference;
 
+import java.io.File;
+import java.io.IOException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 public class ProfileFragment extends Fragment {
@@ -38,6 +50,12 @@ public class ProfileFragment extends Fragment {
     private FirebaseFirestore db;
     private FirebaseAuth mAuth;
     private Uri imageUri;
+
+    // --- NEW CONSTANTS FOR CAMERA ---
+    private static final int REQUEST_IMAGE_PICK = 101;
+    private static final int REQUEST_IMAGE_CAPTURE = 102;
+    private static final int REQUEST_PERMISSION_CAMERA = 103;
+    private String currentPhotoPath;
 
     @Nullable
     @Override
@@ -56,11 +74,8 @@ public class ProfileFragment extends Fragment {
 
         loadUserData();
 
-        ivProfile.setOnClickListener(v -> {
-            Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
-            intent.setType("image/*");
-            startActivityForResult(intent, 101);
-        });
+        // --- UPDATED: Show Popup Dialog ---
+        ivProfile.setOnClickListener(v -> showImageSourceOptions());
 
         view.findViewById(R.id.btnSaveChanges).setOnClickListener(v -> handleSaveChanges());
 
@@ -76,6 +91,95 @@ public class ProfileFragment extends Fragment {
         return view;
     }
 
+    // --- NEW: Dialog for Camera vs Gallery ---
+    private void showImageSourceOptions() {
+        String[] options = {"Take Photo", "Choose from Gallery"};
+        AlertDialog.Builder builder = new AlertDialog.Builder(requireContext());
+        builder.setTitle("Change Profile Picture");
+        builder.setItems(options, (dialog, which) -> {
+            if (which == 0) {
+                checkCameraPermissionAndOpen();
+            } else {
+                openGallery();
+            }
+        });
+        builder.show();
+    }
+
+    private void checkCameraPermissionAndOpen() {
+        if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{Manifest.permission.CAMERA}, REQUEST_PERMISSION_CAMERA);
+        } else {
+            dispatchTakePictureIntent();
+        }
+    }
+
+    private void dispatchTakePictureIntent() {
+        Intent takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+        if (getActivity() != null && takePictureIntent.resolveActivity(getActivity().getPackageManager()) != null) {
+            File photoFile = null;
+            try {
+                photoFile = createImageFile();
+            } catch (IOException ex) {
+                Toast.makeText(getContext(), "Error creating file", Toast.LENGTH_SHORT).show();
+            }
+
+            if (photoFile != null) {
+                Uri photoURI = FileProvider.getUriForFile(requireContext(),
+                        "com.example.unibrew.fileprovider",
+                        photoFile);
+                takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, photoURI);
+                startActivityForResult(takePictureIntent, REQUEST_IMAGE_CAPTURE);
+            }
+        }
+    }
+
+    private File createImageFile() throws IOException {
+        String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
+        String imageFileName = "JPEG_" + timeStamp + "_";
+        File storageDir = requireActivity().getExternalFilesDir(Environment.DIRECTORY_PICTURES);
+        File image = File.createTempFile(imageFileName, ".jpg", storageDir);
+        currentPhotoPath = image.getAbsolutePath();
+        return image;
+    }
+
+    private void openGallery() {
+        Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
+        intent.setType("image/*");
+        startActivityForResult(intent, REQUEST_IMAGE_PICK);
+    }
+
+    // --- UPDATED: Handle Results ---
+    @Override
+    public void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (resultCode == Activity.RESULT_OK) {
+            if (requestCode == REQUEST_IMAGE_PICK && data != null) {
+                // Gallery
+                imageUri = data.getData();
+                Glide.with(this).load(imageUri).circleCrop().into(ivProfile);
+            } else if (requestCode == REQUEST_IMAGE_CAPTURE) {
+                // Camera
+                File f = new File(currentPhotoPath);
+                imageUri = Uri.fromFile(f);
+                Glide.with(this).load(imageUri).circleCrop().into(ivProfile);
+            }
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == REQUEST_PERMISSION_CAMERA) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                dispatchTakePictureIntent();
+            } else {
+                Toast.makeText(getContext(), "Camera permission needed", Toast.LENGTH_SHORT).show();
+            }
+        }
+    }
+
+    // --- EXISTING SAVE LOGIC (UNCHANGED) ---
     private void loadUserData() {
         FirebaseUser user = mAuth.getCurrentUser();
         if (user != null) {
@@ -91,7 +195,10 @@ public class ProfileFragment extends Fragment {
                 tvTitle.setText(name != null ? name : "User");
                 etUsername.setText(name);
 
-                String pUrl = doc.getString("profileImageUrl");
+                String pUrl = doc.getString("profileImageUrl"); // Matches your saving logic
+                // If this is null, try checking "imageURL" just in case old data exists
+                if (pUrl == null) pUrl = doc.getString("imageURL");
+
                 if (pUrl != null && isAdded()) {
                     Glide.with(this).load(pUrl).circleCrop().into(ivProfile);
                 }
@@ -109,7 +216,6 @@ public class ProfileFragment extends Fragment {
         boolean isEmailChanged = !newEmail.isEmpty() && !newEmail.equals(user.getEmail());
         boolean isPasswordChanged = !etNewPass.getText().toString().isEmpty();
 
-        // 1. If only changing Name/Photo, skip authentication
         if (!isEmailChanged && !isPasswordChanged) {
             if (imageUri != null) {
                 uploadImageAndSaveData();
@@ -119,13 +225,11 @@ public class ProfileFragment extends Fragment {
             return;
         }
 
-        // 2. If changing Email/Password, require Current Password
         if (currentPassword.isEmpty()) {
             etCurrentPass.setError("Required to change Email or Password");
             return;
         }
 
-        // 3. Re-authenticate
         AuthCredential credential = EmailAuthProvider.getCredential(user.getEmail(), currentPassword);
         user.reauthenticate(credential).addOnSuccessListener(aVoid -> {
             if (imageUri != null) {
@@ -154,7 +258,6 @@ public class ProfileFragment extends Fragment {
         });
     }
 
-    // --- REWRITTEN METHOD: CHAINS THE UPDATES SAFELY ---
     private void saveProfileData(String photoUrl) {
         FirebaseUser user = mAuth.getCurrentUser();
         if (user == null) return;
@@ -163,7 +266,6 @@ public class ProfileFragment extends Fragment {
         String newEmail = etEmail.getText().toString().trim();
         boolean isEmailChanged = !newEmail.isEmpty() && !newEmail.equals(user.getEmail());
 
-        // Step A: Define the Final Database Save action
         Runnable saveToDatabase = () -> {
             String newName = etUsername.getText().toString().trim();
             String oldName = tvTitle.getText().toString();
@@ -176,31 +278,28 @@ public class ProfileFragment extends Fragment {
 
             Map<String, Object> updates = new HashMap<>();
             if (!newName.isEmpty()) updates.put("name", newName);
-            if (photoUrl != null) updates.put("profileImageUrl", photoUrl);
+            // Save as both keys to ensure compatibility with all pages
+            if (photoUrl != null) {
+                updates.put("profileImageUrl", photoUrl);
+                updates.put("imageURL", photoUrl);
+            }
 
             db.collection("users").document(user.getUid())
                     .set(updates, SetOptions.merge())
                     .addOnSuccessListener(aVoid -> {
                         updatePastReviews(oldName, newName);
                         tvTitle.setText(newName);
-
-                        // Clear Sensitive Fields
                         etCurrentPass.setText("");
                         etNewPass.setText("");
                         etEmail.setText("");
                         if (user.getEmail() != null) etEmail.setHint(user.getEmail());
-
                         Toast.makeText(getActivity(), "Profile Updated Successfully!", Toast.LENGTH_SHORT).show();
                     })
                     .addOnFailureListener(e -> Toast.makeText(getActivity(), "DB Error: " + e.getMessage(), Toast.LENGTH_SHORT).show());
         };
 
-        // Step B: Execute the Updates in a Chain (Password -> Email -> DB)
-
-        // 1. Update Password First (if needed)
         if (!newPassword.isEmpty()) {
             user.updatePassword(newPassword).addOnSuccessListener(aVoid -> {
-                // Password done. Now check Email.
                 if (isEmailChanged) {
                     user.updateEmail(newEmail).addOnSuccessListener(v -> saveToDatabase.run())
                             .addOnFailureListener(e -> Toast.makeText(getActivity(), "Email failed: " + e.getMessage(), Toast.LENGTH_SHORT).show());
@@ -209,12 +308,10 @@ public class ProfileFragment extends Fragment {
                 }
             }).addOnFailureListener(e -> Toast.makeText(getActivity(), "Password failed: " + e.getMessage(), Toast.LENGTH_SHORT).show());
         }
-        // 2. Or Update Email Only (if Password wasn't changed)
         else if (isEmailChanged) {
             user.updateEmail(newEmail).addOnSuccessListener(v -> saveToDatabase.run())
                     .addOnFailureListener(e -> Toast.makeText(getActivity(), "Email failed: " + e.getMessage(), Toast.LENGTH_SHORT).show());
         }
-        // 3. Or Just Save Database (if neither changed)
         else {
             saveToDatabase.run();
         }
@@ -229,14 +326,5 @@ public class ProfileFragment extends Fragment {
                         document.getReference().update("user", newName);
                     }
                 });
-    }
-
-    @Override
-    public void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == 101 && resultCode == Activity.RESULT_OK && data != null) {
-            imageUri = data.getData();
-            Glide.with(this).load(imageUri).circleCrop().into(ivProfile);
-        }
     }
 }

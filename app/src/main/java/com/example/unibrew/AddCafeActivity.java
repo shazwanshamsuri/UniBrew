@@ -3,7 +3,6 @@ package com.example.unibrew;
 import android.Manifest;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
-import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
@@ -52,11 +51,12 @@ import java.util.regex.Pattern;
 
 public class AddCafeActivity extends AppCompatActivity implements OnMapReadyCallback {
 
-    private EditText etName, etDesc;
-    // --- LINK FEATURE VARIABLES ---
+    // --- NEW: Added etPhone ---
+    private EditText etName, etDesc, etPhone;
+    // --------------------------
+
     private EditText etMapLink;
     private Button btnApplyLink;
-    // -----------------------------
 
     private ImageView ivPreview;
     private Button btnSave;
@@ -65,13 +65,12 @@ public class AddCafeActivity extends AppCompatActivity implements OnMapReadyCall
     private Uri imageUri;
     private FusedLocationProviderClient fusedLocationClient;
 
-    // --- NEW CONSTANTS ---
     private static final int REQUEST_IMAGE_PICK = 200;
     private static final int REQUEST_IMAGE_CAPTURE = 201;
     private static final int REQUEST_PERMISSION_CAMERA = 202;
     private static final int REQUEST_PERMISSION_LOCATION = 1001;
-    private static final int REQUEST_PERMISSION_NOTIFICATION = 1002; // NEW
-    private static final String CHANNEL_ID = "cafe_updates_channel"; // NEW
+    private static final int REQUEST_PERMISSION_NOTIFICATION = 1002;
+    private static final String CHANNEL_ID = "cafe_updates_channel";
     private String currentPhotoPath;
 
     @Override
@@ -79,19 +78,19 @@ public class AddCafeActivity extends AppCompatActivity implements OnMapReadyCall
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_add_cafe);
 
-        // --- NEW: Create Notification Channel (Required for Android 8+) ---
         createNotificationChannel();
-        // -----------------------------------------------------------------
-
-        // --- NEW: Ask for Notification Permission (Android 13+) ---
         checkNotificationPermission();
-        // ----------------------------------------------------------
 
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
         db = FirebaseFirestore.getInstance();
 
         etName = findViewById(R.id.etCafeName);
         etDesc = findViewById(R.id.etCafeDesc);
+
+        // --- NEW: Initialize Phone Input ---
+        // MAKE SURE YOU ADD THIS ID TO YOUR XML: android:id="@+id/etCafePhone"
+        etPhone = findViewById(R.id.etCafePhone);
+        // -----------------------------------
 
         etMapLink = findViewById(R.id.etGoogleMapLink);
         btnApplyLink = findViewById(R.id.btnApplyLink);
@@ -111,7 +110,6 @@ public class AddCafeActivity extends AppCompatActivity implements OnMapReadyCall
         btnSave.setOnClickListener(v -> saveCafeProcess());
     }
 
-    // --- NEW: Create Notification Channel ---
     private void createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             CharSequence name = "Cafe Updates";
@@ -124,7 +122,6 @@ public class AddCafeActivity extends AppCompatActivity implements OnMapReadyCall
         }
     }
 
-    // --- NEW: Check Notification Permission ---
     private void checkNotificationPermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
@@ -133,15 +130,13 @@ public class AddCafeActivity extends AppCompatActivity implements OnMapReadyCall
         }
     }
 
-    // --- NEW: Send the Notification ---
     private void sendSuccessNotification(String cafeName) {
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-            // Permission not granted? Just skip the notification.
             return;
         }
 
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
-                .setSmallIcon(android.R.drawable.ic_dialog_info) // You can change this to your app icon
+                .setSmallIcon(android.R.drawable.ic_dialog_info)
                 .setContentTitle("New Cafe Added!")
                 .setContentText("Success! " + cafeName + " has been added to the map.")
                 .setPriority(NotificationCompat.PRIORITY_DEFAULT)
@@ -151,7 +146,6 @@ public class AddCafeActivity extends AppCompatActivity implements OnMapReadyCall
         notificationManager.notify(1, builder.build());
     }
 
-    // --- EXISTING CAMERA LOGIC ---
     private void showImageSourceOptions() {
         String[] options = {"Take Photo", "Choose from Gallery"};
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
@@ -330,6 +324,11 @@ public class AddCafeActivity extends AppCompatActivity implements OnMapReadyCall
 
     private void saveCafeToFirestore(String name, String imageUrl) {
         String desc = etDesc.getText().toString();
+
+        // --- NEW: Retrieve Phone Number ---
+        String phone = etPhone.getText().toString().trim();
+        // ----------------------------------
+
         LatLng center = mMap.getCameraPosition().target;
 
         Map<String, Object> cafe = new HashMap<>();
@@ -339,16 +338,19 @@ public class AddCafeActivity extends AppCompatActivity implements OnMapReadyCall
         cafe.put("longitude", center.longitude);
         cafe.put("addedBy", FirebaseAuth.getInstance().getCurrentUser().getEmail());
 
+        // --- NEW: Save Phone Number to Database ---
+        if (!phone.isEmpty()) {
+            cafe.put("phoneNumber", phone);
+        }
+        // ------------------------------------------
+
         if (imageUrl != null) {
             cafe.put("imageUrl", imageUrl);
         }
 
         db.collection("cafes").add(cafe)
                 .addOnSuccessListener(doc -> {
-                    // --- UPDATED: TRIGGER NOTIFICATION HERE ---
                     sendSuccessNotification(name);
-                    // ------------------------------------------
-
                     Toast.makeText(this, "Cafe Saved!", Toast.LENGTH_SHORT).show();
                     finish();
                 });
