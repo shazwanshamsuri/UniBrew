@@ -46,8 +46,8 @@
                     android:id="@+id/tvCardRating"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="★ 4.8"
-                    android:textColor="@color/orange_pop"
+                    android:text="★ 0.0"
+                    android:textColor="#FF9800"
                     android:textStyle="bold"/>
             </LinearLayout>
 
@@ -55,40 +55,20 @@
                 android:id="@+id/tvCardDesc"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Cozy, Muslim Friendly"
+                android:text="Description..."
                 android:textSize="12sp"
                 android:textColor="#888"
                 android:layout_marginTop="4dp"/>
 
-            <LinearLayout
+            <TextView
+                android:id="@+id/tvCardDistance"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:layout_marginTop="12dp"
-                android:gravity="center_vertical">
-
-                <ImageView
-                    android:layout_width="12dp"
-                    android:layout_height="12dp"
-                    android:src="@android:drawable/presence_online"
-                    app:tint="#4CAF50"/>
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text=" Open now"
-                    android:textColor="#4CAF50"
-                    android:textSize="12sp"
-                    android:textStyle="bold"/>
-
-                <TextView
-                    android:id="@+id/tvCardDistance"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text=" • 0.2km"
-                    android:textColor="#888"
-                    android:textSize="12sp"/>
-            </LinearLayout>
+                android:text="Calculating..."
+                android:textColor="#4CAF50"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:layout_marginTop="8dp"/>
         </LinearLayout>
     </LinearLayout>
 </androidx.cardview.widget.CardView>

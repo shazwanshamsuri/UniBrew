@@ -29,13 +29,13 @@ public class HomeFragment extends Fragment {
     private List<Cafe> list;
     private FirebaseFirestore db;
     private FusedLocationProviderClient fusedLocationClient;
+    private boolean isFirstLoad = true; // Flag to control sound
 
     @Nullable
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_home, container, false);
 
-        // This sets the channel to IMPORTANCE_LOW to remove the "noise"
         NotificationHelper.createNotificationChannel(requireContext());
 
         db = FirebaseFirestore.getInstance();
@@ -47,8 +47,6 @@ public class HomeFragment extends Fragment {
         adapter = new CafeAdapter(list);
         rv.setAdapter(adapter);
 
-        loadData();
-
         view.findViewById(R.id.fabSwitchToMap).setOnClickListener(v -> {
             startActivity(new Intent(getActivity(), MapActivity.class));
         });
@@ -56,27 +54,31 @@ public class HomeFragment extends Fragment {
         return view;
     }
 
+    // --- KEY FIX: USE onResume() ---
+    // This runs EVERY TIME the screen becomes visible
+    @Override
+    public void onResume() {
+        super.onResume();
+        loadData();
+    }
+    // --------------------------------
+
     private void loadData() {
         db.collection("cafes").get().addOnSuccessListener(queryDocumentSnapshots -> {
             list.clear();
             for (QueryDocumentSnapshot doc : queryDocumentSnapshots) {
-                // 1. Convert Firestore data to Cafe object
                 Cafe cafe = doc.toObject(Cafe.class);
-
-                // --- FIX STARTS HERE ---
-                // 2. Manually grab the Document ID and save it into the object
-                // This ensures "cafeId" is not null when you click the item!
-                cafe.setId(doc.getId());
-                // --- FIX ENDS HERE ---
-
+                cafe.setId(doc.getId()); // Essential for clicks to work
                 list.add(cafe);
             }
             adapter.notifyDataSetChanged();
 
-            // 1. PLAY YOUR CUSTOM ENTRANCE SOUND
-            playWelcomeSound();
+            // Play sound only the first time app opens, not every time you come back
+            if (isFirstLoad) {
+                playWelcomeSound();
+                isFirstLoad = false;
+            }
 
-            // 2. CHECK FOR NEARBY CAFES
             checkNearbyCafes();
         });
     }
@@ -103,6 +105,11 @@ public class HomeFragment extends Fragment {
 
         fusedLocationClient.getLastLocation().addOnSuccessListener(location -> {
             if (location != null) {
+
+                // Updates the "0.2 km" text
+                adapter.updateUserLocation(location);
+
+                // Proximity Notification Logic
                 for (Cafe cafe : list) {
                     float[] results = new float[1];
                     Location.distanceBetween(

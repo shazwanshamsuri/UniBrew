@@ -142,20 +142,13 @@ public class CafeDetailActivity extends AppCompatActivity {
         }
 
         FirebaseUser currentUser = FirebaseAuth.getInstance().getCurrentUser();
-        if (currentUser == null) {
-            Toast.makeText(this, "You must be logged in!", Toast.LENGTH_SHORT).show();
-            return;
-        }
+        if (currentUser == null) return;
 
         db.collection("users").document(currentUser.getUid()).get()
                 .addOnSuccessListener(documentSnapshot -> {
                     String currentUserName = documentSnapshot.getString("name");
                     String currentUserPhoto = documentSnapshot.getString("imageURL");
-
                     if (currentUserName == null) currentUserName = currentUser.getDisplayName();
-                    if (currentUserPhoto == null && currentUser.getPhotoUrl() != null) {
-                        currentUserPhoto = currentUser.getPhotoUrl().toString();
-                    }
 
                     Map<String, Object> review = new HashMap<>();
                     review.put("cafeId", cafeId);
@@ -165,19 +158,44 @@ public class CafeDetailActivity extends AppCompatActivity {
                     review.put("userName", currentUserName);
                     review.put("photoUrl", currentUserPhoto);
 
+                    // 1. Add the Review
                     db.collection("reviews").add(review)
                             .addOnSuccessListener(doc -> {
                                 Toast.makeText(this, "Review Posted!", Toast.LENGTH_SHORT).show();
                                 etComment.setText("");
                                 rbRating.setRating(0);
                                 loadReviews(cafeId);
-                            })
-                            .addOnFailureListener(e -> {
-                                Toast.makeText(this, "Failed: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+
+                                // --- NEW: CALCULATE AND UPDATE AVERAGE RATING ---
+                                updateCafeAverageRating(cafeId);
+                                // ------------------------------------------------
                             });
-                })
-                .addOnFailureListener(e -> {
-                    Toast.makeText(this, "Could not fetch user profile", Toast.LENGTH_SHORT).show();
+                });
+    }
+
+    // --- NEW HELPER METHOD ---
+    private void updateCafeAverageRating(String cafeId) {
+        db.collection("reviews")
+                .whereEqualTo("cafeId", cafeId)
+                .get()
+                .addOnSuccessListener(snapshots -> {
+                    double totalRating = 0;
+                    int count = 0;
+
+                    for (QueryDocumentSnapshot doc : snapshots) {
+                        Double r = doc.getDouble("rating");
+                        if (r != null) {
+                            totalRating += r;
+                            count++;
+                        }
+                    }
+
+                    if (count > 0) {
+                        double avg = totalRating / count;
+                        // Save the new average back to the CAFE document
+                        db.collection("cafes").document(cafeId)
+                                .update("rating", avg);
+                    }
                 });
     }
 

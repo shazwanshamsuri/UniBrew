@@ -2,25 +2,38 @@ package com.example.unibrew;
 
 import android.content.Context;
 import android.content.Intent;
+import android.location.Location;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.animation.AnimationUtils;
 import android.widget.ImageView;
 import android.widget.TextView;
+
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
+
 import com.bumptech.glide.Glide;
+
 import java.util.List;
-import android.view.animation.AnimationUtils;
+import java.util.Locale;
 
 public class CafeAdapter extends RecyclerView.Adapter<CafeAdapter.ViewHolder> {
 
     private List<Cafe> cafeList;
+    private Location userLocation; // We store the user's GPS location here
     private int lastPosition = -1;
-    // Constructor
+
     public CafeAdapter(List<Cafe> cafeList) {
         this.cafeList = cafeList;
     }
+
+    // --- NEW: METHOD TO RECEIVE GPS LOCATION ---
+    public void updateUserLocation(Location location) {
+        this.userLocation = location;
+        notifyDataSetChanged(); // Refresh the list to show new distances
+    }
+    // -------------------------------------------
 
     @NonNull
     @Override
@@ -29,24 +42,43 @@ public class CafeAdapter extends RecyclerView.Adapter<CafeAdapter.ViewHolder> {
         return new ViewHolder(v);
     }
 
-    // --- THIS IS THE ONE AND ONLY BIND METHOD YOU NEED ---
     @Override
     public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
         Cafe cafe = cafeList.get(position);
         Context context = holder.itemView.getContext();
 
-        // 1. Set Text
         holder.name.setText(cafe.getName());
         holder.desc.setText(cafe.getDescription());
 
-        // 2. Load Image
+        // --- 1. SET REAL RATING ---
+        // If rating is 0, we can show "New" or just 0.0
+        if (cafe.getRating() > 0) {
+            holder.rating.setText(String.format(Locale.getDefault(), "★ %.1f", cafe.getRating()));
+        } else {
+            holder.rating.setText("New");
+        }
+
+        // --- 2. CALCULATE REAL DISTANCE ---
+        if (userLocation != null) {
+            float[] results = new float[1];
+            // Math to calculate distance between User and Cafe
+            Location.distanceBetween(
+                    userLocation.getLatitude(), userLocation.getLongitude(),
+                    cafe.getLatitude(), cafe.getLongitude(),
+                    results);
+
+            float distanceInKm = results[0] / 1000;
+            holder.distance.setText(String.format(Locale.getDefault(), "%.1f km away", distanceInKm));
+        } else {
+            holder.distance.setText("... km");
+        }
+
         Glide.with(context)
                 .load(cafe.getImageUrl())
                 .placeholder(R.drawable.ic_cute_camera)
                 .centerCrop()
                 .into(holder.image);
 
-        // 3. Click Listener
         holder.itemView.setOnClickListener(v -> {
             Intent intent = new Intent(context, CafeDetailActivity.class);
             intent.putExtra("cafeId", cafe.getId());
@@ -58,12 +90,8 @@ public class CafeAdapter extends RecyclerView.Adapter<CafeAdapter.ViewHolder> {
             context.startActivity(intent);
         });
 
-        // --- NEW: WATERFALL ANIMATION ---
-        // Only animate if the item is scrolling into view, not when scrolling back up
         if (position > lastPosition) {
-            android.view.animation.Animation animation =
-                    AnimationUtils.loadAnimation(context, R.anim.item_slide_up);
-            holder.itemView.startAnimation(animation);
+            holder.itemView.startAnimation(AnimationUtils.loadAnimation(context, R.anim.item_slide_up));
             lastPosition = position;
         }
     }
@@ -71,16 +99,16 @@ public class CafeAdapter extends RecyclerView.Adapter<CafeAdapter.ViewHolder> {
     @Override
     public int getItemCount() { return cafeList.size(); }
 
-    // --- YOUR VIEWHOLDER CLASS ---
     public static class ViewHolder extends RecyclerView.ViewHolder {
-        TextView name, desc;
+        TextView name, desc, rating, distance;
         ImageView image;
 
         public ViewHolder(@NonNull View itemView) {
             super(itemView);
-            // These IDs must match your item_cafe_card.xml
             name = itemView.findViewById(R.id.tvCardName);
             desc = itemView.findViewById(R.id.tvCardDesc);
+            rating = itemView.findViewById(R.id.tvCardRating); // Added this
+            distance = itemView.findViewById(R.id.tvCardDistance); // Added this
             image = itemView.findViewById(R.id.ivCardImage);
         }
     }
